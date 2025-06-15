@@ -2,7 +2,7 @@
 title: SpringBoot启动流程详解
 date: 2025-06-07 12:00:00 +0800
 categories: [spring boot]
-tags: [源码分析, 启动流程]
+tags: [源码阅读, 启动流程]
 ---
 
 # SpringBoot启动流程详解
