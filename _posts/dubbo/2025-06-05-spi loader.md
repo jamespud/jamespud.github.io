@@ -103,8 +103,8 @@ public class DubboSPITest {
 
     @Test
     public void sayHello() throws Exception {
-        ExtensionLoader<Robot> extensionLoader = 
-            ExtensionLoader.getExtensionLoader(Robot.class);
+        ExtensionDirector extensionDirector = ApplicationModel.defaultModel().getExtensionDirector();
+        ExtensionLoader<Robot> extensionLoader = extensionDirector.getExtensionLoader(Robot.class);
         // 按名称加载指定实现
         Robot optimusPrime = extensionLoader.getExtension("optimusPrime");
         optimusPrime.sayHello();
