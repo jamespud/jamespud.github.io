@@ -4,7 +4,7 @@ date: 2025-06-18 12:00:00 +0800
 categories: [从零开始的Dubbo源码阅读]
 tags: [dubbo, 源码阅读, dubbo3]
 ---
-# Dubbo 3.x 服务目录源码分析
+# 服务目录
 
 > 参考链接：[dubbo2.6源码分析](https://cn.dubbo.apache.org/zh-cn/docsv2.7/dev/source/directory/)
 
