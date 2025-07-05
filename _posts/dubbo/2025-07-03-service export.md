@@ -50,12 +50,12 @@ public DubboBootstrap start(boolean wait) {
 核心逻辑委托给了`DefaultApplicationDeployer#start()`方法，这里通过Future模式支持同步/异步两种启动方式，非常灵活。
 
 ```java
-public Future<Boolean> start() {
+public Future start() {
     // 使用startLock确保启动过程的原子性，防止多线程竞争导致的重复启动
     synchronized (startLock) {
         // 校验应用生命周期状态：禁止已停止/失败的应用重新启动
         if (isStopping() || isStopped() || isFailed()) {
-            throw new IllegalStateException(getIdentifier() + " is stopping or stopped, can not start again");
+            throw new IllegalStateException("/*...*/");
         }
 
         try {
@@ -273,11 +273,9 @@ public void initialize() throws IllegalStateException {
         ModuleConfig moduleConfig = moduleModel
                 .getConfigManager()
                 .getModule()
-                .orElseThrow(() -> new IllegalStateException("Default module config is not initialized"));
-        // 解析异步导出配置
+                .orElseThrow(() -> new IllegalStateException("/*...*/"));
         // 决定服务导出（暴露为远程服务）是否采用异步模式
         exportAsync = Boolean.TRUE.equals(moduleConfig.getExportAsync());
-        // 解析异步引用配置
         // 决定服务引用（创建远程服务代理）是否采用异步模式
         referAsync = Boolean.TRUE.equals(moduleConfig.getReferAsync());
         // 解析后台运行模式
@@ -498,7 +496,7 @@ private void doExportUrlsFor1Protocol(
 }
 ```
 
-这里即宏观上的服务导出逻辑。这里的流程非常清晰：
+`doExportUrlsFor1Protocol`宏观上的服务导出逻辑的流程为：
 
 1. 构建参数映射（配置、注解、环境变量等）
 2. 生成服务URL（核心标识）
@@ -1307,12 +1305,13 @@ public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcExceptio
 
 以上代码主要做了：
 
-1. 向注册中心注册服务
+1. 获取向注册中心注册的url
 2. 向注册中心进行订阅 override 数据
-3. 调用 doLocalExport 本地导出服务
-4. 创建并返回 DestroyableExporter
+3. 调用 doLocalExport 本地导出服务，也就是本地开启服务监听
+4. 向注册中心注册服务
+5. 创建并返回 DestroyableExporter
 
-###### 本地导出
+###### 本地导出服务
 
 ```java
 private <T> ExporterChangeableWrapper<T> doLocalExport(final Invoker<T> originInvoker, URL providerUrl) {
@@ -1606,9 +1605,9 @@ protected void doOpen() throws Throwable {
 }
 ```
 
-###### 导出服务到注册中心
+###### 连接到注册中心
 
-服务导出完成后，最后一步是将服务注册到注册中心，使消费者能够发现它：
+本地导出服务完成后，最后一步是将服务注册到注册中心，使消费者能够发现它。首先根据先前生成的url获取注册中心实例
 
 ```java
 protected Registry getRegistry(final URL registryUrl) {
@@ -1750,7 +1749,7 @@ ZooKeeper连接创建：
 ```java
 public ZookeeperClient connect(URL url) {
     ZookeeperClient zookeeperClient;
-    // 解析URL中的ZooKeeper地址列表（支持主备地址，格式：host1:port1,host2:port2）
+    // 解析URL中的ZooKeeper地址列表: {[username:password@]address}
     List<String> addressList = getURLBackupAddress(url);
     
     // 尝试从缓存获取已连接的客户端（首次检查，无锁）
@@ -1776,11 +1775,6 @@ public ZookeeperClient connect(URL url) {
         writeToClientMap(addressList, zookeeperClient);
     }
     return zookeeperClient;
-}
-
-public ZookeeperClient createZookeeperClient(URL url) {
-    // 创建基于Curator 5.x的ZooKeeper客户端
-    return new Curator5ZookeeperClient(url);
 }
 
 public Curator5ZookeeperClient(URL url) {
@@ -1848,12 +1842,15 @@ public Curator5ZookeeperClient(URL url) {
 }
 ```
 
+简单来说，`getRegistry`方法的作用是创建了一个连接到注册中心的客户端。
+
 ###### 创建节点
 
 最后，将服务信息注册到ZooKeeper：
 
 
 ```java
+// RegistryProtocol#register
 private static void register(Registry registry, URL registeredProviderUrl) {
     // 获取应用部署器，用于统计服务刷新状态
     ApplicationDeployer deployer =
@@ -1888,12 +1885,16 @@ private static void register(Registry registry, URL registeredProviderUrl) {
         deployer.decreaseServiceRefreshCount();
     }
 }
+```
 
+首先通过`RegistryProtocol#register`对服务调用等指标进行记录之后，最终通过`Registry#register`执行注册。之前我们提到过`FailbackRegistry`为默认的FailbackRegistry
+
+```java
+// FailbackRegistry#register
 public void register(URL url) {
     // 检查注册中心是否接受该协议类型的服务（如ZooKeeper注册中心不接受http协议）
     if (!acceptable(url)) {
-        logger.info("URL " + url + " 将不会注册到注册中心。注册中心 " + this.getUrl()
-                + " 不接受该协议类型的服务。");
+        logger.info("/*...*/");
         return;
     }
     
@@ -1922,25 +1923,22 @@ public void register(URL url) {
             if (skipFailback) {
                 t = t.getCause();
             }
-            throw new IllegalStateException(
-                    "注册 " + url + " 到注册中心 " + getUrl().getAddress() + " 失败，原因: "
-                            + t.getMessage(),
-                    t);
+            throw new IllegalStateException("/*...*/");
         } else {
             // 非强制检查时记录错误日志，将注册操作加入失败列表等待重试
-            logger.error(
-                    INTERNAL_ERROR,
-                    "注册模块未知错误",
-                    "",
-                    "注册 " + url + " 失败，等待重试，原因: " + t.getMessage(),
-                    t);
+            logger.error("/*...*/");
         }
         
         // 记录失败的注册请求，用于定时重试
         addFailedRegistered(url);
     }
 }
+```
 
+这里也是做完了参数判断之后委托给`doRegister`进行实际的注册。由于`doRegister`是个抽象方法，我们以`ZookeeperRegistry`为例。
+
+```java
+// ZookeeperRegistry#doRegister
 public void doRegister(URL url) {
     try {
         // 检查注册中心是否已销毁
@@ -1949,11 +1947,14 @@ public void doRegister(URL url) {
         // 动态参数决定是否创建临时节点（默认true，服务下线时自动删除节点）
         zkClient.create(toUrlPath(url), url.getParameter(DYNAMIC_KEY, true), true);
     } catch (Throwable e) {
-        throw new RpcException(
-                "注册 " + url + " 到ZooKeeper " + getUrl() + " 失败，原因: " + e.getMessage(), e);
+        throw new RpcException("/*...*/");
     }
 }
+```
 
+
+
+```java
 public void create(String path, boolean ephemeral, boolean faultTolerant) {
     // 处理持久节点的存在性缓存（避免重复检查）
     if (!ephemeral) {
@@ -1988,13 +1989,11 @@ public void createEphemeral(String path, boolean faultTolerant) {
     } catch (NodeExistsException e) {
         if (faultTolerant) {
             // 节点已存在，可能是旧会话延迟删除导致，尝试删除并重试
-            logger.info("ZNode " + path
-                    + " 已存在，这可能是由于ZooKeeper服务器延迟删除旧会话节点导致的。"
-                    + " 尝试删除并重新创建节点。");
+            logger.info("/*...*/)");
             deletePath(path);
             createEphemeral(path, true);
         } else {
-            logger.warn(REGISTRY_ZOOKEEPER_EXCEPTION, "", "", "ZNode " + path + " 已存在。", e);
+            logger.warn("/*...*/");
             throw new IllegalStateException(e.getMessage(), e);
         }
     } catch (Exception e) {
@@ -2003,7 +2002,9 @@ public void createEphemeral(String path, boolean faultTolerant) {
 }
 ```
 
-###### 订阅 override 数据
+服务导出的流程可以总结为：本地启动netty服务器，在注册中心上创建节点。
+
+##### 订阅 override 数据
 
 在`RegistryProtocol#export`方法里有订阅 override 数据的逻辑，现在一起来看看这个方法
 
