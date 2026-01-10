@@ -1,0 +1,524 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReentrantLock基于AQS框架的核心工作机制深度解析</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #FFFFFF;
+        }
+        .card {
+            background-color: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 1.25rem; /* 20px */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            overflow: hidden;
+            position: relative;
+        }
+        .highlight-gradient-blue {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0), rgba(59, 130, 246, 0.05));
+        }
+        .highlight-gradient-green {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0), rgba(34, 197, 94, 0.05));
+        }
+        .highlight-gradient-purple {
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0), rgba(168, 85, 247, 0.05));
+        }
+        .highlight-gradient-amber {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0), rgba(245, 158, 11, 0.05));
+        }
+        .highlight-gradient-red {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0), rgba(239, 68, 68, 0.05));
+        }
+        .code-block {
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            border: 1px solid #e5e7eb;
+        }
+        .node {
+            width: 120px;
+            height: 60px;
+            background-color: #f3f4f6;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+            position: relative;
+        }
+        .node::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -20px;
+            width: 20px;
+            height: 2px;
+            background-color: #d1d5db;
+            transform: translateY(-50%);
+        }
+        .node::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -20px;
+            width: 20px;
+            height: 2px;
+            background-color: #d1d5db;
+            transform: translateY(-50%);
+        }
+        .node:last-child::after {
+            display: none;
+        }
+        .node:first-child::before {
+            display: none;
+        }
+        .state-box {
+            width: 80px;
+            height: 80px;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            color: white;
+            margin: 0 auto;
+        }
+        .test-env {
+            background-color: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            color: #475569;
+        }
+        .state-0 { background-color: #10b981; }
+        .state-1 { background-color: #ef4444; }
+        .state-2 { background-color: #f59e0b; }
+    </style>
+</head>
+<body class="bg-white">
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+            <!-- 标题卡片 -->
+            <div class="card md:col-span-4 p-8 flex flex-col justify-center">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-blue"></div>
+                <div class="relative">
+                    <div class="flex items-center mb-4">
+                        <i class="fa-solid fa-code-branch text-3xl text-blue-500 mr-4"></i>
+                        <h1 class="text-3xl md:text-4xl font-bold text-gray-800">ReentrantLock基于AQS框架的核心工作机制</h1>
+                    </div>
+                    <p class="text-lg text-gray-600">深度解析AbstractQueuedSynchronizer的实现原理与应用场景</p>
+                </div>
+            </div>
+
+            <!-- AQS核心机制卡片 -->
+            <div class="card md:col-span-2 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-green"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-cogs text-green-500 mr-2"></i>
+                        AQS核心机制
+                    </h2>
+                    <div class="space-y-3">
+                        <div class="flex items-start">
+                            <div class="state-box state-0 text-xs flex-shrink-0 mr-3">0</div>
+                            <div>
+                                <h3 class="font-semibold text-gray-700">同步状态 (state)</h3>
+                                <p class="text-sm text-gray-600">使用volatile修饰，通过CAS原子操作控制状态转换</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="state-box state-1 text-xs flex-shrink-0 mr-3">CLH</div>
+                            <div>
+                                <h3 class="font-semibold text-gray-700">CLH变体队列</h3>
+                                <p class="text-sm text-gray-600">虚拟双向队列，管理等待线程的排队与唤醒</p>
+                            </div>
+                        </div>
+                        <div class="flex items-start">
+                            <div class="state-box state-2 text-xs flex-shrink-0 mr-3">TMP</div>
+                            <div>
+                                <h3 class="font-semibold text-gray-700">模板方法模式</h3>
+                                <p class="text-sm text-gray-600">子类实现具体策略，父类处理通用逻辑</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ReentrantLock类结构卡片 -->
+            <div class="card md:col-span-2 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-purple"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-sitemap text-purple-500 mr-2"></i>
+                        ReentrantLock类结构
+                    </h2>
+                    <div class="code-block">
+<pre>public class ReentrantLock implements Lock {
+    private final Sync sync;  // 核心同步器
+
+    abstract static class Sync extends AQS {
+        abstract boolean initialTryLock();
+        final void lock() { ... }
+        protected final boolean tryRelease(int releases) { ... }
+    }
+
+    static final class NonfairSync extends Sync { ... }  // 非公平锁
+    static final class FairSync extends Sync { ... }    // 公平锁
+}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 公平锁vs非公平锁性能对比卡片 -->
+            <div class="card md:col-span-4 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-amber"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-chart-line text-amber-500 mr-2"></i>
+                        公平锁 vs 非公平锁性能对比
+                    </h2>
+                    <div class="test-env">
+                        <strong>测试环境：</strong>JDK 17 | AMD R7-8745H | 32GB RAM | Ubuntu 24.04.3<br>
+                        <strong>测试工具：</strong>JMH 1.37 | 预热3轮×1秒 | 测试5轮×2秒 | 分叉2次<br>
+                        <strong>测试场景：</strong>低并发(1线程)、中并发(4线程)、高并发(16线程)
+                    </div>
+                    <div class="h-64">
+                        <canvas id="fairnessChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 线程入队流程卡片 -->
+            <div class="card md:col-span-4 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-blue"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-arrow-right-arrow-left text-blue-500 mr-2"></i>
+                        线程入队机制
+                    </h2>
+                    <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 md:space-x-4">
+                        <div class="text-center">
+                            <div class="node bg-blue-100 text-blue-800">Thread 1</div>
+                            <p class="text-sm text-gray-600 mt-2">获取锁失败</p>
+                        </div>
+                        <div class="text-blue-500 text-2xl">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </div>
+                        <div class="text-center">
+                            <div class="node bg-purple-100 text-purple-800">Node 1</div>
+                            <p class="text-sm text-gray-600 mt-2">封装为Node节点</p>
+                        </div>
+                        <div class="text-blue-500 text-2xl">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </div>
+                        <div class="flex items-center space-x-0">
+                            <div class="node bg-gray-200 text-gray-700">Head</div>
+                            <div class="node bg-gray-100 text-gray-800">Node 1</div>
+                            <div class="node bg-gray-100 text-gray-800">Node 2</div>
+                            <div class="node bg-gray-200 text-gray-700">Tail</div>
+                        </div>
+                    </div>
+                    <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="code-block">
+<pre>private Node addWaiter(Node mode) {
+    Node node = new Node(Thread.currentThread(), mode);
+    Node pred = tail;
+    if (pred != null) {
+        node.prev = pred;
+        if (compareAndSetTail(pred, node)) {
+            pred.next = node;
+            return node;
+        }
+    }
+    enq(node);  // 自旋入队
+    return node;
+}</pre>
+                        </div>
+                        <div class="code-block">
+<pre>private Node enq(final Node node) {
+    for (;;) {
+        Node t = tail;
+        if (t == null) {  // 初始化队列
+            if (compareAndSetHead(new Node()))
+                tail = head;
+        } else {
+            node.prev = t;
+            if (compareAndSetTail(t, node)) {
+                t.next = node;
+                return t;
+            }
+        }
+    }
+}</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 阻塞与自旋流程卡片 -->
+            <div class="card md:col-span-2 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-red"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-stop-circle text-red-500 mr-2"></i>
+                        阻塞与自旋流程
+                    </h2>
+                    <div class="code-block">
+<pre>final boolean acquireQueued(final Node node, int arg) {
+    boolean failed = true;
+    try {
+        boolean interrupted = false;
+        for (;;) {
+            final Node p = node.predecessor();
+            if (p == head && tryAcquire(arg)) {
+                setHead(node);  // 成为新头节点
+                p.next = null;  // 帮助GC
+                failed = false;
+                return interrupted;
+            }
+            // 判断是否应该阻塞
+            if (shouldParkAfterFailedAcquire(p, node) && 
+                parkAndCheckInterrupt()) {
+                interrupted = true;
+            }
+        }
+    } finally {
+        if (failed)
+            cancelAcquire(node);  // 取消获取
+    }
+}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 状态流转卡片 -->
+            <div class="card md:col-span-2 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-green"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-rotate text-green-500 mr-2"></i>
+                        Node状态流转
+                    </h2>
+                    <div class="space-y-4">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-gray-400 mr-3"></div>
+                            <div class="flex-1">
+                                <span class="font-semibold text-gray-700">初始状态 (0)</span>
+                                <p class="text-sm text-gray-600">节点创建时的默认状态</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-blue-500 mr-3"></div>
+                            <div class="flex-1">
+                                <span class="font-semibold text-gray-700">SIGNAL (-1)</span>
+                                <p class="text-sm text-gray-600">后继节点需要被唤醒</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
+                            <div class="flex-1">
+                                <span class="font-semibold text-gray-700">CANCELLED (1)</span>
+                                <p class="text-sm text-gray-600">线程已取消等待</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-yellow-500 mr-3"></div>
+                            <div class="flex-1">
+                                <span class="font-semibold text-gray-700">CONDITION (-2)</span>
+                                <p class="text-sm text-gray-600">在条件队列中等待</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-purple-500 mr-3"></div>
+                            <div class="flex-1">
+                                <span class="font-semibold text-gray-700">PROPAGATE (-3)</span>
+                                <p class="text-sm text-gray-600">共享模式下的唤醒传播</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 释放锁流程卡片 -->
+            <div class="card md:col-span-4 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-amber"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-unlock text-amber-500 mr-2"></i>
+                        释放锁与唤醒流程
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="font-semibold text-gray-700 mb-2">tryRelease释放逻辑</h3>
+                            <div class="code-block">
+<pre>protected final boolean tryRelease(int releases) {
+    int c = getState() - releases;
+    if (getExclusiveOwnerThread() != Thread.currentThread())
+        throw new IllegalMonitorStateException();
+    boolean free = (c == 0);
+    if (free)
+        setExclusiveOwnerThread(null);  // 清空持有者
+    setState(c);  // 更新状态
+    return free;  // 是否完全释放
+}</pre>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-700 mb-2">unparkSuccessor唤醒机制</h3>
+                            <div class="code-block">
+<pre>private void unparkSuccessor(Node node) {
+    int ws = node.waitStatus;
+    if (ws < 0)
+        compareAndSetWaitStatus(node, ws, 0);
+    
+    Node s = node.next;
+    if (s == null || s.waitStatus > 0) {
+        s = null;
+        // 从队尾向前遍历寻找有效节点
+        for (Node t = tail; t != null && t != node; t = t.prev)
+            if (t.waitStatus <= 0)
+                s = t;
+    }
+    if (s != null)
+        LockSupport.unpark(s.thread);  // 唤醒线程
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 性能优化策略卡片 -->
+            <div class="card md:col-span-2 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-purple"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-rocket text-purple-500 mr-2"></i>
+                        性能优化策略
+                    </h2>
+                    <div class="space-y-4">
+                        <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                            <h3 class="font-semibold text-purple-800 mb-2">自适应自旋</h3>
+                            <p class="text-sm text-purple-700">根据等待时间动态调整自旋次数，减少上下文切换开销</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                            <h3 class="font-semibold text-purple-800 mb-2">懒清理机制</h3>
+                            <p class="text-sm text-purple-700">延迟清理CANCELLED状态节点，避免频繁的链表操作</p>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                            <h3 class="font-semibold text-purple-800 mb-2">后向遍历唤醒</h3>
+                            <p class="text-sm text-purple-700">从队尾向前遍历寻找有效节点，保证指针一致性</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 同步器对比卡片 -->
+            <div class="card md:col-span-2 p-6 flex flex-col">
+                <div class="absolute top-0 left-0 w-full h-full highlight-gradient-blue"></div>
+                <div class="relative flex-grow">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <i class="fa-solid fa-balance-scale text-blue-500 mr-2"></i>
+                        AQS同步器对比
+                    </h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50">
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">同步器</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">模式</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">state含义</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">特点</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <tr>
+                                    <td class="px-3 py-2 font-medium">ReentrantLock</td>
+                                    <td class="px-3 py-2">独占</td>
+                                    <td class="px-3 py-2">重入次数</td>
+                                    <td class="px-3 py-2">可重入，支持公平/非公平</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-3 py-2 font-medium">Semaphore</td>
+                                    <td class="px-3 py-2">共享</td>
+                                    <td class="px-3 py-2">许可证数量</td>
+                                    <td class="px-3 py-2">控制并发访问数量</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-3 py-2 font-medium">CountDownLatch</td>
+                                    <td class="px-3 py-2">共享</td>
+                                    <td class="px-3 py-2">计数器</td>
+                                    <td class="px-3 py-2">一次性屏障，不可重置</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    // 公平锁vs非公平锁性能对比图表
+    const ctx = document.getElementById('fairnessChart').getContext('2d');
+    const fairnessChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['低并发', '中并发', '高并发'],
+            datasets: [
+                {
+                    label: '公平锁吞吐量 (ops/ms)',
+                    data: [2057, 230, 209],
+                    backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '非公平锁吞吐量 (ops/ms)',
+                    data: [2073, 1443, 1394],
+                    backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '吞吐量 (ops/ms)'
+                    }
+                }
+            }
+        }
+    });
+</script>
+</html>
