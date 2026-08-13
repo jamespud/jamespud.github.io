@@ -3,6 +3,7 @@ title: RabbitMQ教程 - 远程过程调用（RPC）
 date: 2025-02-20 12:00:00 +0800
 categories: [rabbitmq文档]
 tags: [doc]
+mermaid: true
 ---
 # RabbitMQ教程 - 远程过程调用（RPC）
 ## 远程过程调用（使用Java客户端）

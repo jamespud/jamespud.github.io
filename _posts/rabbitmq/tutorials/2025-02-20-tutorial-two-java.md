@@ -3,6 +3,7 @@ title: RabbitMQ教程 - 工作队列
 date: 2025-02-20 12:00:00 +0800
 categories: [rabbitmq文档]
 tags: [doc]
+mermaid: true
 ---
 # RabbitMQ教程 - 工作队列
 ## 工作队列（使用Java客户端）

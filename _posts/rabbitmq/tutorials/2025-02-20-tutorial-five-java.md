@@ -3,6 +3,7 @@ title: RabbitMQ教程 - 主题（使用Java客户端）
 date: 2025-02-20 12:00:00 +0800
 categories: [rabbitmq文档]
 tags: [doc]
+mermaid: true
 ---
 # RabbitMQ教程 - 主题（使用Java客户端）
 在上一个教程中，我们改进了日志系统。不再仅使用只能进行简单广播的`fanout`（扇出）交换器，而是使用了`direct`（直连）交换器，从而能够有选择地接收日志。

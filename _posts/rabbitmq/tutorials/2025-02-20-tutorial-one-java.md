@@ -3,6 +3,7 @@ title: RabbitMQ教程 - “Hello World!”
 date: 2025-02-20 12:00:00 +0800
 categories: [rabbitmq文档]
 tags: [doc]
+mermaid: true
 ---
 # RabbitMQ教程 - “Hello World!”
 ## 简介

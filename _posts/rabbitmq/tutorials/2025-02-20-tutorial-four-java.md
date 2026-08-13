@@ -3,6 +3,7 @@ title: RabbitMQ教程 - 路由（使用Java客户端）
 date: 2025-02-20 12:00:00 +0800
 categories: [rabbitmq文档]
 tags: [doc]
+mermaid: true
 ---
 # RabbitMQ教程 - 路由（使用Java客户端）
 在上一个教程中，我们构建了一个简单的日志系统，能够将日志消息广播给多个接收者。

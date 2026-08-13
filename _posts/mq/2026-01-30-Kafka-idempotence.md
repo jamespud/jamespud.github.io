@@ -3,6 +3,7 @@ title: "Kafka死信队列（DLQ）重试机制与消息不丢失的最佳实践"
 date: 2026-01-30 19:55:00 +0800
 categories: [Kafka]
 tags: [Kafka, MQ]
+mermaid: true
 ---
 
 > （注：文档部分内容可能由 AI 生成）
