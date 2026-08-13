@@ -155,6 +155,8 @@ baseurl: ""
 # ------------ The following options are not recommended to be modified ------------------
 
 kramdown:
+  # Keep straight quotes from Markdown instead of converting them to curly quotes.
+  smart_quotes: [quot, quot, quot, quot]
   footnote_backlink: "&#8617;&#xfe0e;"
   syntax_highlighter: rouge
   syntax_highlighter_opts: # Rouge Options › https://github.com/jneen/rouge#full-options
